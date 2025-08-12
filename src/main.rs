@@ -483,9 +483,6 @@ impl AstNode {}
 fn main() {
     let mut lexer = Lexer::new("let a : func = lambda (x: i32) : i32 => x+1".to_string());
     lexer.lex();
-    //for _ in 0..10 {
-    //    lexer.read().unwrap().print();
-    //}
     let mut parser = Parser::new(lexer);
     println!("{}", parser.statement().unwrap().str());
 }
