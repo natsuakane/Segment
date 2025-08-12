@@ -72,6 +72,11 @@ impl Lexer {
 }
 
 #[derive(Clone, Debug)]
+struct Type {
+    name: String,
+}
+
+#[derive(Clone, Debug)]
 enum AstNode {
     Empty,
     Float {
@@ -99,7 +104,7 @@ enum AstNode {
     Let {
         name: String,
         is_mutable: bool,
-        value_type: String,
+        value_type: Type,
         value: Box<AstNode>,
     },
     If {
@@ -116,9 +121,9 @@ enum AstNode {
         args: Vec<AstNode>,
     },
     Lambda {
-        args: Vec<(String, String)>,
+        args: Vec<(String, Type)>,
         body: Box<AstNode>,
-        return_type: String,
+        return_type: Type,
     },
 }
 impl AstNode {
@@ -171,7 +176,7 @@ impl AstNode {
                 if *is_mutable {
                     s.push_str("mutable ");
                 }
-                s.push_str(&value_type);
+                s.push_str(&value_type.name);
                 s.push(' ');
                 s.push_str(&value.str());
                 s.push(')');
@@ -225,11 +230,11 @@ impl AstNode {
                     }
                     s.push_str(&arg.0);
                     s.push(':');
-                    s.push_str(&arg.1);
+                    s.push_str(&arg.1.name);
                 }
                 s.push(')');
                 s.push(':');
-                s.push_str(&return_type);
+                s.push_str(&return_type.name);
                 s.push(' ');
                 s.push_str(&body.str());
                 s.push(')');
@@ -293,6 +298,11 @@ impl Parser {
             Token::Identifier(id) => Ok(id),
             _ => Err("Expected identifier".to_string()),
         }
+    }
+
+    fn get_type(&mut self) -> Result<Type, String> {
+        let name = self.identifier()?;
+        Ok(Type { name })
     }
 
     pub fn factor(&mut self) -> Result<AstNode, String> {
@@ -377,11 +387,11 @@ impl Parser {
         if self.istoken("lambda") {
             self.token("lambda")?;
             self.token("(")?;
-            let mut args: Vec<(String, String)> = Vec::new();
+            let mut args: Vec<(String, Type)> = Vec::new();
             while !self.istoken(")") {
                 let arg_name = self.identifier()?;
                 self.token(":")?;
-                let arg_type = self.identifier()?;
+                let arg_type = self.get_type()?;
                 args.push((arg_name, arg_type));
                 if self.istoken(",") {
                     self.token(",")?;
@@ -391,7 +401,7 @@ impl Parser {
             }
             self.token(")")?;
             self.token(":")?;
-            let return_type = self.identifier()?;
+            let return_type = self.get_type()?;
             self.token("=>")?;
             let body = self.expression(0)?;
             Ok(AstNode::Lambda {
@@ -421,7 +431,7 @@ impl Parser {
                 return Err("Expected identifier after 'let'".to_string());
             };
             self.token(":")?;
-            let value_type = match self.identifier() {
+            let value_type = match self.get_type() {
                 Ok(t) => t,
                 Err(_) => return Err("Expected identifier after ':'".to_string()),
             };
