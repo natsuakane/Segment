@@ -1,6 +1,7 @@
 use regex::Regex;
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::rc::Rc;
 
 #[derive(Clone)]
 enum Token {
@@ -474,6 +475,100 @@ impl Parser {
             Ok(AstNode::While { condition, body })
         } else {
             self.let_statement()
+        }
+    }
+}
+
+enum ValueContent {
+    Bit(bool),
+    Array(Vec<Value>),
+    Object(HashMap<String, Value>),
+    Function(Rc<dyn Fn(Vec<Value>) -> Value>),
+}
+struct Value {
+    content: ValueContent,
+    value_type: String,
+}
+
+struct Environment {
+    variables: HashMap<String, (Value, bool)>,
+}
+impl Environment {
+    fn new() -> Self {
+        Environment {
+            variables: HashMap::new(),
+        }
+    }
+
+    fn get(&self, name: &str) -> Result<&Value, String> {
+        self.variables
+            .get(name)
+            .map(|(value, _)| value)
+            .ok_or_else(|| format!("Variable '{}' not found", name))
+    }
+
+    fn set(&mut self, name: String, value: Value) -> Result<(), String> {
+        if let Some((_, is_mut)) = self.variables.get(&name) {
+            if *is_mut {
+                self.variables.insert(name, (value, *is_mut));
+                Ok(())
+            } else {
+                Err(format!("Variable '{}' is not mutable", name))
+            }
+        } else {
+            Err(format!("Variable '{}' not found", name))
+        }
+    }
+
+    fn assign(&mut self, name: String, value: Value, is_mut: bool) -> Result<(), String> {
+        if let Some((_, _)) = self.variables.get(&name) {
+            Err(format!("Variable '{}' is already defined", name))
+        } else {
+            self.variables.insert(name, (value, is_mut));
+            Ok(())
+        }
+    }
+}
+struct Environments {
+    stack: VecDeque<Environment>,
+}
+impl Environments {
+    fn new() -> Self {
+        let mut vec = VecDeque::new();
+        vec.push_back(Environment::new());
+        Environments { stack: vec }
+    }
+
+    fn push(&mut self, env: Environment) {
+        self.stack.push_back(env);
+    }
+
+    fn pop(&mut self) -> Option<Environment> {
+        self.stack.pop_back()
+    }
+
+    fn get(&self, name: &str) -> Result<&Value, String> {
+        for env in self.stack.iter().rev() {
+            if let Ok(value) = env.get(name) {
+                return Ok(value);
+            }
+        }
+        Err(format!("Variable '{}' not found", name))
+    }
+
+    fn set(&mut self, name: String, value: Value) -> Result<(), String> {
+        if let Some(env) = self.stack.back_mut() {
+            env.set(name, value)
+        } else {
+            Err("No environment to set variable".to_string())
+        }
+    }
+
+    fn assign(&mut self, name: String, value: Value, is_mut: bool) -> Result<(), String> {
+        if let Some(env) = self.stack.back_mut() {
+            env.assign(name, value, is_mut)
+        } else {
+            Err("No environment to assign variable".to_string())
         }
     }
 }
