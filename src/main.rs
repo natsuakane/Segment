@@ -1,7 +1,9 @@
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 #[derive(Clone)]
 enum Token {
@@ -483,7 +485,7 @@ enum ValueContent {
     Bit(bool),
     Array(Vec<Value>),
     Object(HashMap<String, Value>),
-    Function(Rc<dyn Fn(Vec<Value>) -> Value>),
+    Function(Arc<dyn Fn(Vec<Value>) -> Value + Send + Sync + 'static>),
 }
 struct Value {
     content: ValueContent,
@@ -571,6 +573,10 @@ impl Environments {
             Err("No environment to assign variable".to_string())
         }
     }
+}
+
+lazy_static! {
+    static ref ENVIRONMENTS: Mutex<Environments> = Mutex::new(Environments::new());
 }
 
 impl AstNode {}
