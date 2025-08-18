@@ -481,12 +481,14 @@ impl Parser {
     }
 }
 
+#[derive(Clone)]
 enum ValueContent {
     Bit(bool),
     Array(Vec<Value>),
     Object(HashMap<String, Value>),
     Function(Arc<dyn Fn(Vec<Value>) -> Value + Send + Sync + 'static>),
 }
+#[derive(Clone)]
 struct Value {
     content: ValueContent,
     value_type: String,
@@ -579,11 +581,76 @@ lazy_static! {
     static ref ENVIRONMENTS: Mutex<Environments> = Mutex::new(Environments::new());
 }
 
-impl AstNode {}
+impl AstNode {
+    fn eval(&self) -> Result<Value, String> {
+        match self {
+            AstNode::Empty => Err("The AstNode is Empty".to_string()),
+            AstNode::Float { val } => {
+                let bit_u64 = val.to_bits();
+                let mut bits: Vec<Value> = vec![
+                    Value {
+                        content: ValueContent::Bit(false),
+                        value_type: "Bit".to_string(),
+                    };
+                    64
+                ];
+                for i in 0..64 {
+                    bits[i].content =
+                        ValueContent::Bit(if bit_u64 >> i & 1 == 1 { true } else { false });
+                }
+                Ok(Value {
+                    content: ValueContent::Array(bits),
+                    value_type: "Float".to_string(),
+                })
+            }
+            AstNode::Integer { val } => {
+                let bit_u64 = *val as u64;
+                let mut bits: Vec<Value> = vec![
+                    Value {
+                        content: ValueContent::Bit(false),
+                        value_type: "Bit".to_string(),
+                    };
+                    64
+                ];
+                for i in 0..64 {
+                    bits[i].content =
+                        ValueContent::Bit(if bit_u64 >> i & 1 == 1 { true } else { false });
+                }
+                Ok(Value {
+                    content: ValueContent::Array(bits),
+                    value_type: "Integer".to_string(),
+                })
+            }
+            AstNode::String { val } => {
+                let bytes = val.as_bytes();
+                let mut bits: Vec<Value> = vec![
+                    Value {
+                        content: ValueContent::Bit(false),
+                        value_type: "Bit".to_string(),
+                    };
+                    8 * bytes.len()
+                ];
+                for i in 0..bytes.len() {
+                    for j in 0..8 {
+                        bits[i * 8 + j].content =
+                            ValueContent::Bit(if bytes[i] >> j & 1 == 1 { true } else { false });
+                    }
+                }
+                Ok(Value {
+                    content: ValueContent::Array(bits),
+                    value_type: "String".to_string(),
+                })
+            }
+            _ => Err("Not defined".to_string()),
+        }
+    }
+}
 
 fn main() {
-    let mut lexer = Lexer::new("let a : func = lambda (x: i32) : i32 => x+1".to_string());
+    let mut lexer = Lexer::new("1+2".to_string());
     lexer.lex();
     let mut parser = Parser::new(lexer);
-    println!("{}", parser.statement().unwrap().str());
+    let node = parser.statement().unwrap();
+    println!("{}", node.str());
+    node.eval();
 }
