@@ -254,6 +254,7 @@ struct Parser {
 impl Parser {
     fn new(lexer: Lexer) -> Self {
         let mut operators = HashMap::new();
+        operators.insert("=".to_string(), 0);
         operators.insert("+".to_string(), 1);
         operators.insert("-".to_string(), 1);
         operators.insert("*".to_string(), 2);
@@ -504,10 +505,10 @@ impl Environment {
         }
     }
 
-    fn get(&self, name: &str) -> Result<&Value, String> {
+    fn get(&self, name: &str) -> Result<Value, String> {
         self.variables
             .get(name)
-            .map(|(value, _)| value)
+            .map(|(value, _)| value.clone())
             .ok_or_else(|| format!("Variable '{}' not found", name))
     }
 
@@ -551,7 +552,7 @@ impl Environments {
         self.stack.pop_back()
     }
 
-    fn get(&self, name: &str) -> Result<&Value, String> {
+    fn get(&self, name: &str) -> Result<Value, String> {
         for env in self.stack.iter().rev() {
             if let Ok(value) = env.get(name) {
                 return Ok(value);
@@ -641,16 +642,21 @@ impl AstNode {
                     value_type: "String".to_string(),
                 })
             }
+            AstNode::Identifier { name } => Ok(ENVIRONMENTS.lock().unwrap().get(name.as_str())?),
+            //AstNode::Operator { op, children } =>
             _ => Err("Not defined".to_string()),
         }
     }
 }
 
 fn main() {
-    let mut lexer = Lexer::new("1+2".to_string());
+    let mut lexer = Lexer::new("a".to_string());
     lexer.lex();
     let mut parser = Parser::new(lexer);
     let node = parser.statement().unwrap();
     println!("{}", node.str());
-    node.eval();
+    match node.eval() {
+        Ok(_) => {}
+        Err(msg) => println!("{}", msg),
+    }
 }
