@@ -643,8 +643,38 @@ impl AstNode {
                 })
             }
             AstNode::Identifier { name } => Ok(ENVIRONMENTS.lock().unwrap().get(name.as_str())?),
-            //AstNode::Operator { op, children } =>
-            _ => Err("Not defined".to_string()),
+            AstNode::Operator { op, children } => match op.as_str() {
+                "=" => {
+                    let val = children[1].eval()?;
+                    children[0].assign(val.clone())?;
+                    Ok(val)
+                }
+                "+" => {
+                    let val1 = children[0].eval()?;
+                    let val2 = children[1].eval()?;
+                    if val1.value_type != val2.value_type {
+                        return Err("Mismatched type".to_string());
+                    }
+                    match val1.value_type.as_str() {
+                        "Integer" => {
+                            let mut val1_bool: Vec<bool> = vec![false; 64];
+                            let mut val2_bool: Vec<bool> = vec![false; 64];
+                        }
+                        _ => Err("Mismatched type".to_string()),
+                    }
+                }
+                _ => Err("Not defined operator".to_string()),
+            },
+            _ => Err("Not defined astnode".to_string()),
+        }
+    }
+    fn assign(&self, val: Value) -> Result<(), String> {
+        match self {
+            AstNode::Identifier { name } => {
+                ENVIRONMENTS.lock().unwrap().set(name.clone(), val)?;
+                Ok(())
+            }
+            _ => Err("You cannot assign a value to this expression".to_string()),
         }
     }
 }
